@@ -16,6 +16,7 @@ class AlertCreate(BaseModel):
     status: str = Field(default="Open")
     matched_count: int = Field(default=1, ge=0)
     event_ids: List[str] = Field(default_factory=list)
+    dedup_key: Optional[str] = Field(default=None, max_length=128)
     analyst_notes: Optional[str] = Field(default=None, max_length=1000)
     assigned_to: Optional[str] = Field(default=None, max_length=64)
 
@@ -61,6 +62,7 @@ class AlertResponse(BaseModel):
     status: str
     matched_count: int
     event_ids: List[str] = []
+    dedup_key: Optional[str] = None
     analyst_notes: Optional[str] = None
     assigned_to: Optional[str] = None
     timestamp: datetime

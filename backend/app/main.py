@@ -10,6 +10,7 @@ from app.routes.health import router as health_router
 from app.routes.events import router as events_router
 from app.routes.alerts import router as alerts_router
 from app.routes.incidents import router as incidents_router
+from app.routes.detection import router as detection_router
 
 # Configure logging without sensitive credential output
 logging.basicConfig(
@@ -65,6 +66,7 @@ app.include_router(health_router)
 app.include_router(events_router)
 app.include_router(alerts_router)
 app.include_router(incidents_router)
+app.include_router(detection_router)
 
 
 @app.get("/")

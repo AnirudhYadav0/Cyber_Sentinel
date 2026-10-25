@@ -109,6 +109,7 @@ class DatabaseManager:
 
             # 2. alerts indexes
             self.db.alerts.create_index([("id", ASCENDING)], unique=True, sparse=True)
+            self.db.alerts.create_index([("dedup_key", ASCENDING)], sparse=True)
             self.db.alerts.create_index([("timestamp", DESCENDING)])
             self.db.alerts.create_index([("severity", ASCENDING)])
             self.db.alerts.create_index([("status", ASCENDING)])
@@ -128,6 +129,9 @@ class DatabaseManager:
             self.db.audit_logs.create_index([("timestamp", DESCENDING)])
             self.db.audit_logs.create_index([("action", ASCENDING)])
             self.db.audit_logs.create_index([("resource_type", ASCENDING)])
+
+            # 6. detection_history indexes
+            self.db.detection_history.create_index([("timestamp", DESCENDING)])
 
             logger.info("Verified all MongoDB collection indexes.")
         except Exception as err:

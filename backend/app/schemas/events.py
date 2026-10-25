@@ -120,6 +120,13 @@ class SecurityEventResponse(BaseModel):
     description: Optional[str] = None
     metadata: Optional[Dict[str, Any]] = None
 
+    @field_validator("timestamp", mode="after")
+    @classmethod
+    def ensure_utc(cls, v: datetime) -> datetime:
+        if v.tzinfo is None:
+            return v.replace(tzinfo=timezone.utc)
+        return v.astimezone(timezone.utc)
+
 
 class PaginatedEventsResponse(BaseModel):
     items: List[SecurityEventResponse]
