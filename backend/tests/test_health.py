@@ -17,9 +17,9 @@ def test_health_endpoint():
 
 
 def test_ready_endpoint_reports_real_state():
-    """Verify readiness endpoint accurately reports disconnected DB when not connected."""
+    """Verify readiness endpoint accurately reports disconnected DB (HTTP 503) when not connected."""
     response = client.get("/api/ready")
-    assert response.status_code == 200
+    assert response.status_code == 503
     data = response.json()
     assert data["database"] == "disconnected"
     assert data["ready"] is False

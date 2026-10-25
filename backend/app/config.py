@@ -16,9 +16,10 @@ class Settings(BaseSettings):
     # CORS origins: configured for the actual local Next.js frontend origin
     cors_origins: Union[List[str], str] = ["http://localhost:3000", "http://127.0.0.1:3000"]
 
-    # MongoDB placeholders (not connected in Phase 1)
+    # MongoDB Atlas settings
     mongodb_uri: str = "mongodb_connection_string_placeholder"
     mongodb_database: str = "cybersentinel"
+    mongodb_timeout_ms: int = 5000
 
     # Demo Mode
     demo_mode: bool = True

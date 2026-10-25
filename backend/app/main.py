@@ -5,10 +5,13 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from app.config import settings
+from app.database import db_manager
 from app.routes.health import router as health_router
 from app.routes.events import router as events_router
+from app.routes.alerts import router as alerts_router
+from app.routes.incidents import router as incidents_router
 
-# Configure logging
+# Configure logging without sensitive credential output
 logging.basicConfig(
     level=logging.INFO if not settings.debug else logging.DEBUG,
     format="%(asctime)s - [%(levelname)s] - %(name)s - %(message)s",
@@ -19,10 +22,15 @@ logger = logging.getLogger("cybersentinel")
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger.info(f"Starting {settings.app_name} v{settings.app_version} ({settings.app_env})")
-    # Startup tasks (e.g. database connection in future phases)
+    # Connect database if configured
+    try:
+        db_manager.connect()
+    except Exception as err:
+        logger.warning(f"Database connection skipped or failed: {err.__class__.__name__}")
     yield
-    # Shutdown tasks
-    logger.info(f"Shutting down {settings.app_name}")
+    # Clean shutdown
+    logger.info(f"Shutting down {settings.app_name} and closing database connection...")
+    db_manager.disconnect()
 
 
 app = FastAPI(
@@ -52,9 +60,11 @@ async def global_exception_handler(request: Request, exc: Exception):
     )
 
 
-# Include routers
+# Include all routers
 app.include_router(health_router)
 app.include_router(events_router)
+app.include_router(alerts_router)
+app.include_router(incidents_router)
 
 
 @app.get("/")
@@ -64,4 +74,5 @@ def root():
         "version": settings.app_version,
         "docs_url": "/docs",
         "health_url": "/api/health",
+        "readiness_url": "/api/ready",
     }

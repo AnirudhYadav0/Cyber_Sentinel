@@ -1,5 +1,5 @@
 from datetime import datetime, timezone
-from fastapi import APIRouter
+from fastapi import APIRouter, Response, status
 from app.config import settings
 from app.database import db_manager
 
@@ -8,7 +8,7 @@ router = APIRouter(tags=["Health & Status"])
 
 @router.get("/api/health")
 def get_health():
-    """Health check endpoint to verify API availability."""
+    """Health check endpoint to verify API process availability."""
     return {
         "status": "healthy",
         "service": settings.app_name,
@@ -19,12 +19,23 @@ def get_health():
 
 
 @router.get("/api/ready")
-def get_readiness():
-    """Readiness endpoint verifying status of dependencies."""
-    db_ready = db_manager.is_connected()
+def get_readiness(response: Response):
+    """Readiness endpoint verifying status of required dependencies (e.g. MongoDB)."""
+    db_ready = db_manager.is_connected() and db_manager.ping()
+    if not db_ready:
+        # Return degraded readiness status without throwing unhandled exceptions
+        response.status_code = status.HTTP_503_SERVICE_UNAVAILABLE
+        return {
+            "status": "degraded",
+            "ready": False,
+            "database": "disconnected",
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "message": "Database is not connected. Configure MONGODB_URI in .env to connect to MongoDB Atlas.",
+        }
+
     return {
-        "status": "ready" if db_ready else "degraded",
-        "ready": db_ready,
-        "database": "connected" if db_ready else "disconnected",
+        "status": "ready",
+        "ready": True,
+        "database": "connected",
         "timestamp": datetime.now(timezone.utc).isoformat(),
     }
