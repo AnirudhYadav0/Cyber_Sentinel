@@ -134,6 +134,13 @@ class DatabaseManager:
             self.db.detection_history.create_index([("timestamp", DESCENDING)])
 
             logger.info("Verified all MongoDB collection indexes.")
+
+            # Seed initial default users if not already present
+            try:
+                from app.security.authentication import auth_service
+                auth_service.seed_default_users(self.db)
+            except Exception as user_err:
+                logger.warning(f"Could not seed default users: {user_err.__class__.__name__}")
         except Exception as err:
             logger.warning(f"Could not initialize collection indexes: {err.__class__.__name__}")
 

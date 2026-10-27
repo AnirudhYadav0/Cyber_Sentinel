@@ -1,5 +1,5 @@
 from typing import Optional
-from fastapi import APIRouter, Query, Path, HTTPException, status
+from fastapi import APIRouter, Query, Path, HTTPException, status, Depends
 
 from app.schemas.incidents import (
     IncidentCreate,
@@ -8,6 +8,7 @@ from app.schemas.incidents import (
     PaginatedIncidentsResponse,
 )
 from app.services.incident_service import incident_service
+from app.security.authentication import require_analyst, UserResponse
 
 router = APIRouter(prefix="/api/incidents", tags=["Incidents"])
 
@@ -32,10 +33,18 @@ def list_incidents(
     )
 
 
-@router.post("", response_model=IncidentResponse, status_code=status.HTTP_201_CREATED)
-def create_incident(payload: IncidentCreate):
-    """Create a new security incident case."""
-    created = incident_service.create_incident(payload)
+@router.post(
+    "",
+    response_model=IncidentResponse,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(require_analyst)],
+)
+def create_incident(
+    payload: IncidentCreate,
+    current_user: UserResponse = Depends(require_analyst),
+):
+    """Create a new security incident case. Requires analyst or admin role."""
+    created = incident_service.create_incident(payload, user=current_user.username)
     if not created:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -58,13 +67,18 @@ def get_incident_by_id(
     return incident
 
 
-@router.patch("/{incident_id}", response_model=IncidentResponse)
+@router.patch(
+    "/{incident_id}",
+    response_model=IncidentResponse,
+    dependencies=[Depends(require_analyst)],
+)
 def update_incident(
     payload: IncidentUpdate,
     incident_id: str = Path(..., min_length=1, max_length=64, description="Incident ID"),
+    current_user: UserResponse = Depends(require_analyst),
 ):
     """Update investigation notes, severity, status, or assignment for an incident."""
-    updated = incident_service.update_incident(incident_id, payload)
+    updated = incident_service.update_incident(incident_id, payload, user=current_user.username)
     if not updated:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

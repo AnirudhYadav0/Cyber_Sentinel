@@ -248,12 +248,22 @@ def test_disconnected_db_handling(disconnected_db):
     assert data["detections_generated"] == 0
 
 
-def test_rule_tuning_and_validation():
-    """Verify rule update endpoint and parameter validation."""
-    # Valid update
+def test_rule_tuning_and_validation(admin_headers, analyst_headers):
+    """Verify rule update endpoint RBAC and parameter validation."""
+    # 1. Non-admin analyst role is forbidden (HTTP 403)
+    forbidden_res = client.patch(
+        "/api/detection/rules/AUTH-001",
+        json={"threshold": 8},
+        headers=analyst_headers,
+    )
+    assert forbidden_res.status_code == 403
+    assert "Forbidden" in forbidden_res.json()["detail"]
+
+    # 2. Administrator role succeeds (HTTP 200)
     patch_res = client.patch(
         "/api/detection/rules/AUTH-001",
         json={"threshold": 8, "window_minutes": 15, "severity": "High"},
+        headers=admin_headers,
     )
     assert patch_res.status_code == 200
     rule = patch_res.json()
@@ -261,15 +271,20 @@ def test_rule_tuning_and_validation():
     assert rule["window_minutes"] == 15
     assert rule["severity"] == "High"
 
-    # Invalid threshold (0 is not allowed)
+    # 3. Invalid threshold (0 is not allowed)
     bad_res = client.patch(
         "/api/detection/rules/AUTH-001",
         json={"threshold": 0},
+        headers=admin_headers,
     )
     assert bad_res.status_code == 422
 
-    # Reset back to default
-    client.patch("/api/detection/rules/AUTH-001", json={"threshold": 5, "window_minutes": 10, "severity": "Critical"})
+    # 4. Reset back to default
+    client.patch(
+        "/api/detection/rules/AUTH-001",
+        json={"threshold": 5, "window_minutes": 10, "severity": "Critical"},
+        headers=admin_headers,
+    )
 
 
 def test_detection_history_retrieval(mock_db):

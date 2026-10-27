@@ -1,7 +1,8 @@
 from datetime import datetime
 from typing import Optional, List, Union
-from fastapi import APIRouter, Query, Path, HTTPException, status, UploadFile, File
+from fastapi import APIRouter, Query, Path, HTTPException, status, UploadFile, File, Depends
 
+from app.config import settings
 from app.schemas.events import (
     SecurityEventCreate,
     SecurityEventResponse,
@@ -9,6 +10,9 @@ from app.schemas.events import (
     IngestionResponse,
 )
 from app.services.event_service import event_service
+from app.security.authentication import require_analyst, UserResponse
+from app.security.rate_limiter import rate_limit_dependency
+from app.services.audit_service import audit_service
 
 router = APIRouter(prefix="/api/events", tags=["Events"])
 
@@ -65,11 +69,23 @@ def get_event_by_id(
     return event
 
 
-@router.post("/ingest", response_model=IngestionResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/ingest",
+    response_model=IngestionResponse,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[
+        Depends(require_analyst),
+        Depends(rate_limit_dependency("event_ingest", max_requests=120, window_seconds=60)),
+    ],
+)
 def ingest_events(
     payload: Union[SecurityEventCreate, List[SecurityEventCreate]],
+    current_user: UserResponse = Depends(require_analyst),
 ):
-    """Ingest single or batched security events."""
+    """
+    Ingest single or batched security events.
+    Enforces authorization (analyst or admin), rate limits, and maximum batch size of 1000.
+    """
     events_list = payload if isinstance(payload, list) else [payload]
     if len(events_list) > 1000:
         raise HTTPException(
@@ -79,18 +95,47 @@ def ingest_events(
     return event_service.ingest_events(events_list)
 
 
-@router.post("/upload", response_model=IngestionResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/upload",
+    response_model=IngestionResponse,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[
+        Depends(require_analyst),
+        Depends(rate_limit_dependency("event_upload", max_requests=30, window_seconds=60)),
+    ],
+)
 async def upload_events_file(
-    file: UploadFile = File(..., description="JSON or JSON Lines log file (.json, .jsonl, .ndjson, .log)")
+    file: UploadFile = File(..., description="JSON or JSON Lines log file (.json, .jsonl, .ndjson, .log)"),
+    current_user: UserResponse = Depends(require_analyst),
 ):
-    """Upload and ingest security telemetry from JSON or JSON Lines file."""
+    """
+    Upload and ingest security telemetry from JSON or JSON Lines file.
+    Enforces strict chunked size limits (10MB) to prevent memory exhaustion DoS attacks.
+    """
     if not file.filename:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Uploaded file must have a valid filename.",
         )
 
-    content = await file.read()
+    # Chunked read to protect server memory against massive payloads
+    chunks = []
+    total_read = 0
+    max_size = settings.max_upload_size_bytes
+
+    while True:
+        chunk = await file.read(64 * 1024)
+        if not chunk:
+            break
+        total_read += len(chunk)
+        if total_read > max_size:
+            raise HTTPException(
+                status_code=status.HTTP_413_CONTENT_TOO_LARGE,
+                detail=f"File size exceeds maximum allowed limit of {max_size // (1024 * 1024)}MB.",
+            )
+        chunks.append(chunk)
+
+    content = b"".join(chunks)
     if not content:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -100,5 +145,19 @@ async def upload_events_file(
     result = event_service.parse_and_ingest_file(
         filename=file.filename,
         content=content,
+        max_file_size=max_size,
+    )
+
+    audit_service.log_action(
+        action="upload_events",
+        resource_type="file",
+        resource_id=file.filename,
+        user=current_user.username,
+        changes={
+            "bytes_received": total_read,
+            "created": result.created,
+            "rejected": result.rejected,
+            "duplicates": result.duplicates,
+        },
     )
     return result

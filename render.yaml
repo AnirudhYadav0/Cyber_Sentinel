@@ -1,0 +1,49 @@
+services:
+  # CyberSentinel FastAPI Backend Web Service
+  - type: web
+    name: cybersentinel-api
+    runtime: python
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    plan: free
+    healthCheckPath: /healthz
+    envVars:
+      - key: APP_NAME
+        value: "CyberSentinel API"
+      - key: APP_ENV
+        value: "production"
+      - key: DEBUG
+        value: "false"
+      - key: DEMO_MODE
+        value: "false"
+      - key: CORS_ORIGINS
+        sync: false # Set to your deployed Vercel frontend URL, e.g. https://cybersentinel.vercel.app
+      - key: MONGODB_URI
+        sync: false # Set to your MongoDB Atlas SRV URI
+      - key: MONGODB_DATABASE
+        value: "cybersentinel"
+      - key: MONGODB_TIMEOUT_MS
+        value: "5000"
+      - key: JWT_SECRET_KEY
+        generateValue: true # Render will generate a cryptographically strong 32-character secret
+      - key: JWT_ALGORITHM
+        value: "HS256"
+      - key: ACCESS_TOKEN_EXPIRE_MINUTES
+        value: "60"
+      - key: AUTH_REQUIRED
+        value: "true"
+      - key: ADMIN_DEFAULT_USERNAME
+        value: "admin"
+      - key: ADMIN_DEFAULT_PASSWORD
+        sync: false # Set your initial administrative password
+      - key: ANALYST_DEFAULT_USERNAME
+        value: "analyst"
+      - key: ANALYST_DEFAULT_PASSWORD
+        sync: false # Set your initial analyst password
+      - key: RATE_LIMIT_ENABLED
+        value: "true"
+      - key: RATE_LIMIT_PER_MINUTE
+        value: "120"
+      - key: AUTH_RATE_LIMIT_PER_MINUTE
+        value: "15"

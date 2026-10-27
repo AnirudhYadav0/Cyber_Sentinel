@@ -25,6 +25,17 @@ export const apiClient: AxiosInstance = axios.create({
   },
 })
 
+// Request interceptor to automatically attach authorization bearer token if stored
+apiClient.interceptors.request.use((config) => {
+  if (typeof window !== 'undefined') {
+    const token = sessionStorage.getItem('cybersentinel_token')
+    if (token && !config.headers.Authorization) {
+      config.headers.Authorization = `Bearer ${token}`
+    }
+  }
+  return config
+})
+
 // Response interceptor to normalize error handling
 apiClient.interceptors.response.use(
   (response) => response,

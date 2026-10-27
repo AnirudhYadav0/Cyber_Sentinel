@@ -1,6 +1,6 @@
 from datetime import datetime
 from typing import Optional
-from fastapi import APIRouter, Query, Path, HTTPException, status
+from fastapi import APIRouter, Query, Path, HTTPException, status, Depends
 
 from app.schemas.alerts import (
     AlertCreate,
@@ -9,6 +9,7 @@ from app.schemas.alerts import (
     PaginatedAlertsResponse,
 )
 from app.services.alert_service import alert_service
+from app.security.authentication import require_analyst, UserResponse
 
 router = APIRouter(prefix="/api/alerts", tags=["Alerts"])
 
@@ -51,13 +52,21 @@ def get_alert_by_id(
     return alert
 
 
-@router.patch("/{alert_id}", response_model=AlertResponse)
+@router.patch(
+    "/{alert_id}",
+    response_model=AlertResponse,
+    dependencies=[Depends(require_analyst)],
+)
 def update_alert(
     payload: AlertUpdate,
     alert_id: str = Path(..., min_length=1, max_length=64, description="Alert ID"),
+    current_user: UserResponse = Depends(require_analyst),
 ):
-    """Update alert triage status, analyst investigation notes, or assignment."""
-    updated = alert_service.update_alert(alert_id, payload)
+    """
+    Update alert triage status, analyst investigation notes, or assignment.
+    Requires analyst or admin role. Audit logged.
+    """
+    updated = alert_service.update_alert(alert_id, payload, user=current_user.username)
     if not updated:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
