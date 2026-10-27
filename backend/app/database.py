@@ -28,12 +28,18 @@ class DatabaseManager:
 
         try:
             logger.info(f"Connecting to MongoDB database: {settings.mongodb_database}...")
-            self.client = MongoClient(
-                uri,
-                serverSelectionTimeoutMS=settings.mongodb_timeout_ms,
-                connectTimeoutMS=settings.mongodb_timeout_ms,
-                retryWrites=True,
-            )
+            client_kwargs = {
+                "serverSelectionTimeoutMS": settings.mongodb_timeout_ms,
+                "connectTimeoutMS": settings.mongodb_timeout_ms,
+                "retryWrites": True,
+            }
+            try:
+                import certifi
+                client_kwargs["tlsCAFile"] = certifi.where()
+            except ImportError:
+                pass
+
+            self.client = MongoClient(uri, **client_kwargs)
             # Verify connectivity with an admin ping
             self.client.admin.command("ping")
             self.db = self.client[settings.mongodb_database]
